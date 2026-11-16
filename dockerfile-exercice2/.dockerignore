@@ -1,0 +1,34 @@
+# ─── Build artifacts ───────────────────────────────────────────────────────
+node_modules
+dist
+
+# ─── Version control ───────────────────────────────────────────────────────
+.git
+.gitignore
+
+# ─── Documentation ─────────────────────────────────────────────────────────
+*.md
+*.txt
+
+# ─── Secrets & config locaux ───────────────────────────────────────────────
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+
+# ─── IDE / OS ──────────────────────────────────────────────────────────────
+.DS_Store
+.vscode
+.idea
+Thumbs.db
+
+# ─── Logs ──────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Docker files non nécessaires au build ─────────────────────────────────
+Dockerfile*
+docker-compose*.yml
+.dockerignore

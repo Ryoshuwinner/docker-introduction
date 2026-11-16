@@ -1,0 +1,101 @@
+EXPLICATION DU DOCKERFILE - quiz-docker
+========================================
+
+
+ARCHITECTURE : MULTI-STAGE BUILD
+---------------------------------
+Le Dockerfile est divisé en deux étapes.
+
+  Stage 1 "builder" : installe Node.js, les dépendances npm et compile
+  l'application Vite. Le résultat est un dossier /app/dist contenant
+  les fichiers statiques prêts à être servis.
+
+  Stage 2 "run" : repart d'une image nginx vierge et ne récupère que
+  le dossier /dist du stage précédent. L'image finale ne contient ni
+  Node.js, ni npm, ni node_modules, ni le code source.
+
+  Avantage : la surface d'attaque est drastiquement réduite. Un attaquant
+  qui comprometrait le conteneur n'aurait accès à rien d'utile.
+
+
+IMAGES ALPINE
+-------------
+On utilise "node:20-alpine" et "nginx:stable-alpine", des variantes
+minimalistes basées sur Alpine Linux (~5 Mo vs ~200 Mo pour Debian).
+
+  Moins de paquets installés = moins de vulnérabilités potentielles (CVE).
+
+
+UTILISATEUR NON-ROOT
+--------------------
+Par défaut, les processus dans un conteneur Docker tournent en root.
+Si un attaquant exploite une faille de l'application, il obtient les
+droits root dans le conteneur, et potentiellement sur la machine hôte
+si des volumes sont mal configurés.
+
+  On crée un utilisateur dédié "appuser" et on bascule dessus avec
+  l'instruction USER avant de démarrer nginx.
+
+
+PORT NON-PRIVILÉGIÉ (8080)
+--------------------------
+Les ports inférieurs à 1024 (dont le port 80) nécessitent la capacité
+Linux CAP_NET_BIND_SERVICE, qui est liée aux droits root.
+
+  En utilisant le port 8080, le processus nginx peut tourner sans
+  avoir besoin de droits élevés, ce qui est cohérent avec l'utilisation
+  d'un utilisateur non-root.
+
+
+npm ci PLUTÔT QUE npm install
+------------------------------
+"npm ci" installe strictement ce que déclare package-lock.json et
+échoue si les versions déclarées divergent du fichier de lock.
+
+  Cela évite les attaques de type "dependency confusion" où un paquet
+  malveillant remplacerait une dépendance légitime.
+
+
+.dockerignore
+-------------
+Le fichier .dockerignore exclut du contexte de build :
+  - node_modules  (lourd et inutile, recréé par npm ci)
+  - dist          (sera regénéré par le build)
+  - .git          (historique git inutile dans l'image)
+  - *.md          (documentation inutile dans l'image)
+
+  Avantages : build plus rapide et aucun risque de copier
+  accidentellement des secrets ou fichiers sensibles dans l'image.
+
+
+LOGS VERS STDOUT/STDERR
+-----------------------
+Les logs nginx sont redirigés vers les descripteurs standard (stdout
+et stderr) plutôt qu'écrits sur disque dans le conteneur.
+
+  Docker les collecte nativement via "docker logs". Cela évite
+  l'accumulation de fichiers de log dans le conteneur et empêche
+  toute fuite de données dans un volume oublié.
+
+
+RÉSUMÉ DES MESURES DE SÉCURITÉ
+--------------------------------
+  1. Multi-stage build      → image finale sans outils de build ni code source
+  2. Images Alpine          → surface d'attaque minimale
+  3. Utilisateur non-root   → pas d'escalade de privilèges possible
+  4. Port 8080              → aucune capacité Linux supplémentaire requise
+  5. npm ci                 → dépendances verrouillées et vérifiées
+  6. .dockerignore          → aucun fichier sensible copié par accident
+  7. Logs stdout/stderr     → pas de données stockées dans le conteneur
+
+
+COMMANDES POUR LANCER LE CONTENEUR
+------------------------------------
+  # Construire l'image
+  docker build -t quiz-docker .
+
+  # Lancer le conteneur
+  docker run -p 8080:8080 quiz-docker
+
+  # Ouvrir dans le navigateur
+  http://localhost:8080

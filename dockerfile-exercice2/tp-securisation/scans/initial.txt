@@ -1,0 +1,41 @@
+2026-11-16T12:38:06Z	INFO	[vulndb] Need to update DB
+2026-11-16T12:38:06Z	INFO	[vulndb] Downloading vulnerability DB...
+2026-11-16T12:38:06Z	INFO	[vulndb] Downloading artifact...	repo="mirror.gcr.io/aquasec/trivy-db:2"
+2026-11-16T12:38:17Z	INFO	[vulndb] Artifact successfully downloaded	repo="mirror.gcr.io/aquasec/trivy-db:2"
+2026-11-16T12:38:17Z	INFO	[vuln] Vulnerability scanning is enabled
+2026-11-16T12:38:17Z	INFO	[secret] Secret scanning is enabled
+2026-11-16T12:38:17Z	INFO	[secret] If your scanning is slow, please try '--scanners vuln' to disable secret scanning
+2026-11-16T12:38:17Z	INFO	[secret] Please see https://trivy.dev/docs/v0.76/guide/scanner/secret#recommendation for faster secret detection
+2026-11-16T12:38:18Z	INFO	Detected OS	family="alpine" version="3.24.4"
+2026-11-16T12:38:18Z	INFO	[alpine] Detecting vulnerabilities...	os_version="3.24" repository="3.24" pkg_num=71
+2026-11-16T12:38:18Z	INFO	Number of language-specific files	num=0
+2026-11-16T12:38:18Z	WARN	Using severities from other vendors for some vulnerabilities. Read https://trivy.dev/docs/v0.76/guide/scanner/vulnerability#severity-selection for details.
+
+Report Summary
+
+┌─────────────────────────────────────┬────────┬─────────────────┬─────────┐
+│               Target                │  Type  │ Vulnerabilities │ Secrets │
+├─────────────────────────────────────┼────────┼─────────────────┼─────────┤
+│ quiz-docker:initial (alpine 3.24.4) │ alpine │        3        │    -    │
+└─────────────────────────────────────┴────────┴─────────────────┴─────────┘
+Legend:
+- '-': Not scanned
+- '0': Clean (no security findings detected)
+
+
+quiz-docker:initial (alpine 3.24.4)
+===================================
+Total: 3 (HIGH: 3, CRITICAL: 0)
+
+┌─────────┬─────────────────┬──────────┬────────┬───────────────────┬───────────────┬───────────────────────────────────────────────────────────┐
+│ Library │  Vulnerability  │ Severity │ Status │ Installed Version │ Fixed Version │                           Title                           │
+├─────────┼─────────────────┼──────────┼────────┼───────────────────┼───────────────┼───────────────────────────────────────────────────────────┤
+│ libxslt │ CVE-2026-125350 │ HIGH     │ fixed  │ 1.1.43-r3         │ 1.1.43-r4     │ chromium-browser: Use after free in XML                   │
+│         │                 │          │        │                   │               │ https://avd.aquasec.com/nvd/cve-2026-125350               │
+│         ├─────────────────┤          │        │                   │               ├───────────────────────────────────────────────────────────┤
+│         │ CVE-2026-87636  │          │        │                   │               │ chromium-browser: chromium-browser: Type confusion in XML │
+│         │                 │          │        │                   │               │ https://avd.aquasec.com/nvd/cve-2026-87636                │
+│         ├─────────────────┤          │        │                   │               ├───────────────────────────────────────────────────────────┤
+│         │ CVE-2026-9947   │          │        │                   │               │ chromium-browser: Use after free in XML                   │
+│         │                 │          │        │                   │               │ https://avd.aquasec.com/nvd/cve-2026-9947                 │
+└─────────┴─────────────────┴──────────┴────────┴───────────────────┴───────────────┴───────────────────────────────────────────────────────────┘

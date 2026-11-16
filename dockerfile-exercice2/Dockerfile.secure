@@ -1,0 +1,99 @@
+# =============================================================================
+# Dockerfile.secure — quiz-docker:secure
+# Image durcie pour une application statique Vite servie par nginx
+# =============================================================================
+# Mesures de sécurité appliquées :
+#   1. Multi-stage build         → aucun outil de build dans l'image finale
+#   2. Digests SHA256 épinglés   → builds reproductibles, immunisés contre
+#                                  les mutations de tag (tag mutable attack)
+#   3. apk upgrade au build      → corrige les CVE connues (libxslt r3→r4)
+#   4. Utilisateur non-root      → UID/GID fixes, pas de shell, pas de home
+#   5. Port non-privilégié 8080  → CAP_NET_BIND_SERVICE non requise
+#   6. COPY exclusivement        → pas d'ADD avec URL distante non contrôlée
+#   7. Couches RUN consolidées   → surface minimale, pas de couche de cache
+#                                  contenant des fichiers temporaires
+#   8. Logs → stdout/stderr      → pas d'écriture de logs dans le conteneur
+#   9. Filesystem quasi read-only au runtime (--read-only via docker run)
+#      → seuls /tmp, /var/cache/nginx et /run sont montés tmpfs
+# =============================================================================
+
+# ─────────────────────────────────────────────
+# STAGE 1 : builder
+# Compile l'application avec Vite.
+# Cette image n'est PAS incluse dans l'image finale.
+# ─────────────────────────────────────────────
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS builder
+
+WORKDIR /app
+
+# Copie uniquement les fichiers de dépendances en premier
+# → exploite le cache Docker : npm ci ne retourne que si package*.json change
+COPY package.json package-lock.json ./
+
+# npm ci : installation déterministe depuis package-lock.json
+# --ignore-scripts : empêche l'exécution de scripts npm arbitraires (supply-chain)
+RUN npm ci --ignore-scripts
+
+# Copie le reste du code source
+COPY . .
+
+# Build de production
+RUN npm run build
+
+
+# ─────────────────────────────────────────────
+# STAGE 2 : runner (image finale)
+# Sert uniquement les fichiers statiques compilés.
+# Contenu : nginx + Alpine + fichiers dist. Rien d'autre.
+# ─────────────────────────────────────────────
+FROM nginx:stable-alpine@sha256:901e593c95dc85f5a729f5765516321366ef4ac401821431d408897e95287d0a
+
+# ── Patch de sécurité ───────────────────────────────────────────────────────
+# Met à jour libxslt r3 → r4 pour corriger CVE-2026-125350, CVE-2026-87636,
+# CVE-2026-9947 (tous HIGH, tous fixés dans r4).
+# --no-cache : ne laisse pas le cache apk dans l'image finale.
+RUN apk upgrade --no-cache libxslt
+
+# ── Utilisateur non-root ────────────────────────────────────────────────────
+# UID/GID fixes et explicites → auditables, cohérents entre hosts.
+# -S : compte système (pas de shell, pas de home par défaut).
+# -u / -g : UID et GID fixes pour éviter les collisions.
+RUN addgroup -S -g 1001 appgroup && \
+    adduser  -S -u 1001 -G appgroup -H -s /sbin/nologin appuser
+
+# ── Fichiers statiques ──────────────────────────────────────────────────────
+# COPY (pas ADD) depuis le stage builder uniquement.
+COPY --from=builder --chown=appuser:appgroup /app/dist /usr/share/nginx/html
+
+# ── Configuration nginx ─────────────────────────────────────────────────────
+# Copie une config nginx minimaliste dédiée (pas de modification sed en place).
+COPY --chown=appuser:appgroup nginx.conf /etc/nginx/nginx.conf
+
+# ── Permissions runtime ─────────────────────────────────────────────────────
+# nginx doit écrire dans ces répertoires lors du démarrage.
+# On les crée en root ici (étape de build) et on les cède à appuser.
+# Au runtime, --read-only + tmpfs sur ces chemins est recommandé.
+RUN mkdir -p /var/cache/nginx/client_temp \
+             /var/cache/nginx/proxy_temp  \
+             /var/cache/nginx/fastcgi_temp \
+             /var/cache/nginx/uwsgi_temp  \
+             /var/cache/nginx/scgi_temp   \
+             /run                          && \
+    chown -R appuser:appgroup \
+             /var/cache/nginx              \
+             /var/log/nginx               \
+             /usr/share/nginx/html        \
+             /run                          && \
+    chmod -R 755 /usr/share/nginx/html
+
+EXPOSE 8080
+
+# Bascule sur l'utilisateur non-root
+USER appuser
+
+# Healthcheck intégré : Docker peut redémarrer le conteneur automatiquement
+# si l'application ne répond plus.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -qO- http://localhost:8080/ || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]
